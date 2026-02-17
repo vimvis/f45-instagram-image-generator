@@ -1,0 +1,123 @@
+/* F45 Brand Typography */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@700;800;900&display=swap');
+
+body {
+    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+h1,
+h2,
+h3,
+.font-black {
+    font-weight: 900;
+    letter-spacing: -0.02em;
+}
+
+.f45-gradient-text {
+    background: linear-gradient(135deg, #EE3124 0%, #FC3B14 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Custom Scrollbar Styles */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: #1a0f3f;
+    border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #EE3124;
+    border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #d42a1f;
+}
+
+/* Range Slider Styles */
+input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    cursor: pointer;
+    width: 100%;
+}
+
+input[type="range"]::-webkit-slider-track {
+    background: #1a0f3f;
+    height: 4px;
+    border-radius: 2px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    background: #EE3124;
+    height: 16px;
+    width: 16px;
+    border-radius: 50%;
+    margin-top: -6px;
+    transition: background 0.2s;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+    background: #d42a1f;
+}
+
+input[type="range"]::-moz-range-track {
+    background: #1a0f3f;
+    height: 4px;
+    border-radius: 2px;
+}
+
+input[type="range"]::-moz-range-thumb {
+    background: #EE3124;
+    height: 16px;
+    width: 16px;
+    border-radius: 50%;
+    border: none;
+    transition: background 0.2s;
+}
+
+input[type="range"]::-moz-range-thumb:hover {
+    background: #d42a1f;
+}
+
+/* Animation utilities */
+@keyframes fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-in {
+    animation: fade-in 0.3s ease-out;
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: -1000px 0;
+    }
+
+    100% {
+        background-position: 1000px 0;
+    }
+}
+
+.animate-shimmer {
+    animation: shimmer 2s infinite linear;
+    background: linear-gradient(to right, #1a0f3f 0%, #251560 50%, #1a0f3f 100%);
+    background-size: 1000px 100%;
+}
