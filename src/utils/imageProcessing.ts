@@ -38,14 +38,17 @@ export const processImageFile = async (file: File): Promise<{ base64: string, mi
     });
 };
 
-export const generateCalendarGrid = (month: string, year: string): string => {
-    if (!month || !year) return '';
+export const generateCalendarGrid = (year: string | number, month: string | number): string => {
+    const y = typeof year === 'string' ? parseInt(year) : year;
+    const m = typeof month === 'string' ? parseInt(month) : month;
 
-    const date = new Date(parseInt(year), parseInt(month) - 1, 1);
+    if (isNaN(y) || isNaN(m) || m < 1 || m > 12) return '';
+
+    const date = new Date(y, m - 1, 1);
     const firstDay = date.getDay();
-    const daysInMonth = new Date(parseInt(year), parseInt(month), 0).getDate();
+    const daysInMonth = new Date(y, m, 0).getDate();
 
-    let grid = '### Calendar Grid\n\n';
+    let grid = `### Calendar Grid (${y}-${m})\n\n`;
     grid += '| Sun | Mon | Tue | Wed | Thu | Fri | Sat |\n';
     grid += '|-----|-----|-----|-----|-----|-----|-----|\n';
 
