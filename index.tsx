@@ -259,7 +259,7 @@ const App = () => {
     try {
       const ai = new GoogleGenAI({ apiKey: getApiKey() });
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3.1-flash',
         contents: `
           Act as a social media manager for F45 Training.
           Write 2 distinct versions of an Instagram caption based on these keywords: "${captionKeywords}".
@@ -401,7 +401,7 @@ const App = () => {
       const promises = Array.from({ length: variationCount }).map(async () => {
         try {
           const response = await ai.models.generateContent({
-            model: 'gemini-3-pro-image-preview',
+            model: 'gemini-3.1-flash',
             contents: { parts: parts },
             config: {
               imageConfig: { aspectRatio: aspectRatio, imageSize: "1K" }
@@ -481,7 +481,7 @@ const App = () => {
           </div>
           <h1 className="text-3xl font-bold mb-4 text-white">Connect to Share</h1>
           <p className="text-gray-400 mb-8">
-            This app uses high-quality Gemini 3 models. To use it, please select your own API key from a paid Google Cloud project.
+            This app uses the fast and cost-effective Gemini 3.1 Flash model. To use it, please select your own API key from a paid Google Cloud project.
           </p>
           <button
             onClick={handleSelectKey}
