@@ -113,7 +113,7 @@ const App = () => {
   const [formValues, setFormValues] = useState<Record<string, string>>({});
 
   // Image Generation State
-  const [aspectRatio, setAspectRatio] = useState<AspectRatio>('3:4');
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>('4:5');
   const [isGenerating, setIsGenerating] = useState(false);
   const [savedImages, setSavedImages] = useState<SavedImage[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -694,7 +694,7 @@ const App = () => {
             {isGenerating && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-pulse mb-8">
                 {[...Array(variationCount)].map((_, i) => (
-                  <div key={i} className="bg-gray-800 rounded-xl border border-gray-700 flex items-center justify-center relative overflow-hidden aspect-[3/4]">
+                  <div key={i} className="bg-gray-800 rounded-xl border border-gray-700 flex items-center justify-center relative overflow-hidden aspect-[4/5]">
                     <div className="absolute inset-0 bg-gradient-to-tr from-gray-800 via-gray-700 to-gray-800 animate-shimmer"></div>
                     <i className="fas fa-paint-brush text-3xl text-gray-600 animate-bounce"></i>
                   </div>
