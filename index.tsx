@@ -207,6 +207,8 @@ const buildPrompt = (opts: BuildPromptOptions): string => {
 const App = () => {
   // API & Template State
   const [apiKeySelected, setApiKeySelected] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [formValues, setFormValues] = useState<Record<string, string>>({});
 
@@ -265,34 +267,42 @@ const App = () => {
   };
 
   const checkApiKey = async () => {
-    // First check if environment variable exists
-    if (process.env.API_KEY) {
+    // 1. Vite/build-time env vars
+    if (import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_API_KEY || process.env.API_KEY) {
       setApiKeySelected(true);
       return;
     }
-
-    // For AI Studio platform (if available)
+    // 2. AI Studio platform
     if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
       const hasKey = await window.aistudio.hasSelectedApiKey();
       setApiKeySelected(hasKey);
-    } else {
-      // On Vercel or other platforms, skip API key check
-      setApiKeySelected(true);
+      return;
     }
+    // 3. Previously saved in sessionStorage
+    if (sessionStorage.getItem('GEMINI_API_KEY')) {
+      setApiKeySelected(true);
+      return;
+    }
+    // 4. No key found — show the key entry screen
+    setApiKeySelected(false);
   };
 
-  const handleSelectKey = async () => {
-    // For AI Studio platform
-    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
-      await window.aistudio.openSelectKey();
-      setApiKeySelected(true);
-    } else {
-      const apiKey = prompt('Please enter your Google Gemini API key:');
-      if (apiKey && apiKey.trim()) {
-        sessionStorage.setItem('GEMINI_API_KEY', apiKey.trim());
-        setApiKeySelected(true);
-      }
+  const handleSaveApiKey = () => {
+    const key = apiKeyInput.trim();
+    if (!key) {
+      toast.error('API 키를 입력해주세요');
+      return;
     }
+    sessionStorage.setItem('GEMINI_API_KEY', key);
+    setApiKeySelected(true);
+    setShowApiKeyInput(false);
+    setApiKeyInput('');
+    toast.success('✅ API 키가 저장되었습니다');
+  };
+
+  const handleChangeApiKey = () => {
+    setApiKeyInput('');
+    setApiKeySelected(false);
   };
 
   const handleTemplateSelect = (id: string) => {
@@ -524,24 +534,49 @@ const App = () => {
 
   if (!apiKeySelected) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-gray-900 text-center">
-        <div className="bg-gray-800 p-8 rounded-2xl shadow-2xl max-w-md w-full border border-gray-700">
-          <div className="mb-6">
-            <i className="fas fa-key text-6xl text-blue-500 animate-pulse"></i>
+      <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-[#0d0826] text-center">
+        <div className="bg-[#1a0f3f] p-8 rounded-2xl shadow-2xl max-w-md w-full border border-[#EE3124]/30">
+          {/* Logo */}
+          <div className="w-20 h-20 bg-[#EE3124] rounded-2xl flex items-center justify-center shadow-lg shadow-[#EE3124]/30 mx-auto mb-6">
+            <span className="text-white font-black text-4xl">F45</span>
           </div>
-          <h1 className="text-3xl font-bold mb-4 text-white">Connect to Share</h1>
-          <p className="text-gray-400 mb-8">
-            This app uses the fast and cost-effective Gemini 3.1 Flash model. To use it, please select your own API key from a paid Google Cloud project.
-          </p>
+
+          <h1 className="text-2xl font-black tracking-tight text-white mb-2">Instagram Image Generator</h1>
+          <p className="text-gray-400 text-sm mb-8">Gemini AI로 F45 인스타그램 이미지를 생성합니다.<br/>시작하기 위해 Gemini API 키를 입력해주세요.</p>
+
+          {/* Key input */}
+          <div className="text-left mb-4">
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">
+              <i className="fas fa-key mr-1 text-[#EE3124]"></i> Gemini API Key
+            </label>
+            <input
+              type="password"
+              value={apiKeyInput}
+              onChange={(e) => setApiKeyInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSaveApiKey()}
+              placeholder="AIza..."
+              className="w-full bg-[#0d0826] border border-[#EE3124]/40 rounded-xl p-4 text-white text-sm font-mono outline-none focus:border-[#EE3124] transition-colors placeholder-gray-600"
+              autoFocus
+            />
+          </div>
+
           <button
-            onClick={handleSelectKey}
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-lg transition-all transform hover:scale-105 shadow-lg flex items-center justify-center gap-2"
+            onClick={handleSaveApiKey}
+            className="w-full bg-gradient-to-r from-[#EE3124] to-[#FF6B00] hover:from-[#FF6B00] hover:to-[#EE3124] text-white font-bold py-4 px-6 rounded-xl transition-all transform hover:scale-[1.02] shadow-lg shadow-[#EE3124]/20 flex items-center justify-center gap-2 mb-6"
           >
-            <i className="fas fa-plug"></i> Connect API Key
+            <i className="fas fa-rocket"></i> 시작하기
           </button>
-          <div className="mt-6 text-xs text-gray-500">
-            <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" className="underline hover:text-blue-400">
-              Why do I need a key? (Billing Info)
+
+          <div className="border-t border-gray-700/50 pt-4 space-y-2 text-xs text-gray-500">
+            <p>API 키는 이 브라우저 세션에만 저장됩니다.</p>
+            <a
+              href="https://aistudio.google.com/apikey"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-[#EE3124]/80 hover:text-[#EE3124] underline transition-colors"
+            >
+              <i className="fas fa-external-link-alt text-[10px]"></i>
+              Google AI Studio에서 무료 API 키 받기
             </a>
           </div>
         </div>
@@ -564,15 +599,23 @@ const App = () => {
       {/* Editor Panel */}
       <div className={`w-full lg:w-1/3 h-[calc(100vh-64px)] lg:h-screen overflow-y-auto custom-scrollbar p-6 border-r border-[#EE3124]/20 bg-[#1a0f3f] ${mobileTab === 'editor' ? 'block' : 'hidden'} lg:block`}>
         <header className="mb-8 flex items-center gap-4">
-          <div className="w-16 h-16 bg-[#EE3124] rounded-lg flex items-center justify-center shadow-lg shadow-[#EE3124]/30">
+          <div className="w-16 h-16 bg-[#EE3124] rounded-lg flex items-center justify-center shadow-lg shadow-[#EE3124]/30 flex-shrink-0">
             <span className="text-white font-black text-3xl">F45</span>
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-black tracking-tight text-white">
               Instagram Image Generator
             </h1>
             <p className="text-sm text-gray-400">F45 Training Studio</p>
           </div>
+          {/* API Key change button */}
+          <button
+            onClick={handleChangeApiKey}
+            title="API 키 변경"
+            className="flex-shrink-0 w-9 h-9 rounded-lg bg-gray-800 hover:bg-[#EE3124]/20 border border-gray-700 hover:border-[#EE3124]/50 flex items-center justify-center text-gray-500 hover:text-[#EE3124] transition-all"
+          >
+            <i className="fas fa-key text-xs"></i>
+          </button>
         </header>
 
         <section className="mb-8">
