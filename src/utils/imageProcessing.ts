@@ -30,10 +30,12 @@ export const processImageFile = async (file: File): Promise<{ base64: string; mi
                 const base64 = canvas.toDataURL(file.type).split(',')[1];
                 resolve({ base64, mimeType: file.type });
             };
-            img.onerror = reject;
+            // NOTE: onerror receives an Event object, not an Error — always wrap in Error
+            img.onerror = () => reject(new Error(`이미지 로드 실패: ${file.name}`));
             img.src = e.target?.result as string;
         };
-        reader.onerror = reject;
+        // NOTE: FileReader onerror also receives a ProgressEvent, not an Error — wrap in Error
+        reader.onerror = () => reject(new Error(`파일 읽기 실패: ${file.name}`));
         reader.readAsDataURL(file);
     });
 };

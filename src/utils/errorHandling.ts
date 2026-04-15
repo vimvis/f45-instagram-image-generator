@@ -18,6 +18,16 @@ interface ParsedError {
 }
 
 export const parseError = (err: any): ParsedError => {
+    // Guard: if a DOM Event was accidentally thrown, extract a meaningful message
+    if (err instanceof Event) {
+        return {
+            type: ErrorType.UNKNOWN,
+            title: '❌ 예기치 않은 오류',
+            message: '파일 처리 중 오류가 발생했습니다.',
+            solution: '파일 형식을 확인하고 다시 시도해주세요.'
+        };
+    }
+
     const errorMessage = err?.message || err?.toString() || 'Unknown error';
 
     // API Key errors
