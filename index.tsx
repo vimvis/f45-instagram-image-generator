@@ -466,27 +466,25 @@ const App = () => {
 
       const parts = [...imageParts, { text: promptText }];
 
+      // Run generations in parallel — errors propagate directly to outer catch
+      // so the real API error message is always shown to the user
       const promises = Array.from({ length: variationCount }).map(async () => {
-        try {
-          const response = await ai.models.generateContent({
-            model: GEMINI_MODEL,
-            contents: { parts },
-            config: {
-              imageConfig: { aspectRatio: aspectRatio, imageSize: "1K" }
-            }
-          });
+        const response = await ai.models.generateContent({
+          model: GEMINI_MODEL,
+          contents: { parts },
+          config: {
+            responseModalities: ['IMAGE'],
+            imageConfig: { aspectRatio: aspectRatio, imageSize: "1K" }
+          }
+        });
 
-          for (const part of response.candidates?.[0]?.content?.parts || []) {
-            if (part.inlineData) {
-              return `data:image/png;base64,${part.inlineData.data}`;
-            }
+        for (const part of response.candidates?.[0]?.content?.parts || []) {
+          if (part.inlineData) {
+            return `data:image/png;base64,${part.inlineData.data}`;
           }
-        } catch (innerErr: any) {
-          if (innerErr.message?.includes("Requested entity was not found")) {
-            throw innerErr;
-          }
-          console.error("Individual image failed:", innerErr);
         }
+        // API succeeded but returned no image — log response for debugging
+        console.warn('API response had no inlineData:', JSON.stringify(response.candidates?.[0]?.content?.parts?.map(p => p.text)));
         return null;
       });
 
@@ -494,7 +492,7 @@ const App = () => {
       const validImages = results.filter((img): img is string => img !== null);
 
       if (validImages.length === 0) {
-        throw new Error("Generation failed. Please check your API key / project billing.");
+        throw new Error("이미지가 생성되지 않았습니다. API가 이미지 대신 텍스트만 반환했습니다. 모델이 이미지 생성을 지원하는지 확인해주세요.");
       }
 
       const newSavedImages: SavedImage[] = validImages.map(imgData => ({
