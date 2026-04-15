@@ -1,7 +1,8 @@
 // Error Handling Utilities
 
 export enum ErrorType {
-    API_KEY = 'API_KEY',
+    // NOTE: renamed from API_KEY → API_KEY_INVALID to match usage in index.tsx
+    API_KEY_INVALID = 'API_KEY_INVALID',
     QUOTA = 'QUOTA',
     NETWORK = 'NETWORK',
     INVALID_INPUT = 'INVALID_INPUT',
@@ -22,7 +23,7 @@ export const parseError = (err: any): ParsedError => {
     // API Key errors
     if (errorMessage.includes('API_KEY_INVALID') || errorMessage.includes('API key not valid')) {
         return {
-            type: ErrorType.API_KEY,
+            type: ErrorType.API_KEY_INVALID,
             title: '🔑 Invalid API Key',
             message: 'Your Google Gemini API key is invalid or expired.',
             solution: 'Please check your API key and try connecting again.'

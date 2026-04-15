@@ -28,7 +28,8 @@ export const usePresets = () => {
     const savePreset = async (preset: Omit<Preset, 'id' | 'createdAt'>) => {
         const newPreset: Preset = {
             ...preset,
-            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+            // fixed: substr → substring (substr is deprecated)
+            id: Date.now().toString() + Math.random().toString(36).substring(2, 11),
             createdAt: new Date().toISOString()
         };
 

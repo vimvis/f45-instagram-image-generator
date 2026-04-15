@@ -1,6 +1,6 @@
 // Image Processing Utilities
 
-export const processImageFile = async (file: File): Promise<{ base64: string, mimeType: string }> => {
+export const processImageFile = async (file: File): Promise<{ base64: string; mimeType: string }> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -38,17 +38,15 @@ export const processImageFile = async (file: File): Promise<{ base64: string, mi
     });
 };
 
-export const generateCalendarGrid = (year: string | number, month: string | number): string => {
-    const y = typeof year === 'string' ? parseInt(year) : year;
-    const m = typeof month === 'string' ? parseInt(month) : month;
+// Parameters are strictly number (callers should parse before calling)
+export const generateCalendarGrid = (year: number, month: number): string => {
+    if (isNaN(year) || isNaN(month) || month < 1 || month > 12) return '';
 
-    if (isNaN(y) || isNaN(m) || m < 1 || m > 12) return '';
-
-    const date = new Date(y, m - 1, 1);
+    const date = new Date(year, month - 1, 1);
     const firstDay = date.getDay();
-    const daysInMonth = new Date(y, m, 0).getDate();
+    const daysInMonth = new Date(year, month, 0).getDate();
 
-    let grid = `### Calendar Grid (${y}-${m})\n\n`;
+    let grid = `### Calendar Grid (${year}-${month})\n\n`;
     grid += '| Sun | Mon | Tue | Wed | Thu | Fri | Sat |\n';
     grid += '|-----|-----|-----|-----|-----|-----|-----|\n';
 

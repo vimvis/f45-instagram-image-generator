@@ -15,6 +15,9 @@ import { ColorPicker } from '@/src/components/ColorPicker';
 
 // --- Constants ---
 
+/** Centralised model name — change here to update all API calls */
+const GEMINI_MODEL = 'gemini-3.1-flash';
+
 const TEMPLATES: Template[] = [
   {
     id: 'studio-ops',
@@ -104,6 +107,101 @@ const TEMPLATES: Template[] = [
   }
 ];
 
+// --- Prompt Builder (extracted from generateImages for maintainability) ---
+
+interface BuildPromptOptions {
+  template: Template;
+  formValues: Record<string, string>;
+  brandColors: BrandColors;
+  bgTheme: BgTheme;
+  bgOpacity: number;
+  bgPrompt: string;
+  bgFile: File | null;
+  logoFile: File | null;
+  logoPosition: LogoPosition;
+  logoSize: number;
+  customIconPrompt: string;
+  aspectRatio: AspectRatio;
+  calendarGrid: string;
+}
+
+const buildPrompt = (opts: BuildPromptOptions): string => {
+  const {
+    template, formValues, brandColors, bgTheme, bgOpacity,
+    bgPrompt, bgFile, logoFile, logoPosition, logoSize,
+    customIconPrompt, aspectRatio, calendarGrid,
+  } = opts;
+
+  let userContent = '';
+  Object.entries(formValues).forEach(([key, value]) => {
+    const label = template.fields.find(f => f.id === key)?.label || key;
+    const cleanLabel = label.split('(')[0].trim();
+    userContent += `${cleanLabel}: "${value}"\n`;
+  });
+
+  const titleColor = bgTheme === 'dark' ? brandColors.textColor : '#221551';
+  const bgInstruction = bgTheme === 'dark' ? 'General Theme: DARK.' : 'General Theme: LIGHT.';
+
+  const ctaValue = formValues['cta'];
+  const hasCtaInput = ctaValue && ctaValue.trim().length > 0;
+  const ctaInstruction = hasCtaInput
+    ? `**CTA BUTTON (Important):**
+      - Text: "${ctaValue}"
+      - Shape: Solid Rectangle at the bottom.
+      - Color: **${brandColors.primary}**.
+      - Style: **FLAT & SOLID**.`
+    : `**CTA / BUTTONS:** DO NOT render any buttons.`;
+
+  let prompt = `
+    Create a high-quality Instagram notice image for an F45 Training studio.
+    
+    **STRICT TEXT RENDERING PROTOCOL:**
+    1. **ONLY** render provided text.
+    2. **DO NOT** add extra text.
+    3. If value is empty, do not render.
+    
+    **Category:** ${template.title}
+    ${template.promptBase}
+    ${calendarGrid}
+    ${ctaInstruction}
+
+    **Theme & Typography:**
+    - Background: ${bgInstruction}
+    - Title Color: ${titleColor}
+    - English: MUST use **'Gotham'** (Bold).
+    - Korean: MUST use **'Noto Sans KR'**.
+
+    **Brand Colors:**
+    - Primary: ${brandColors.primary}
+    - Secondary: ${brandColors.secondary}
+    - Text: ${brandColors.textColor}
+
+    **CONTENT TO RENDER:**
+    ${userContent}
+  `;
+
+  let imageIndex = 1;
+  if (logoFile) {
+    const posText = logoPosition.split('-').map(s => s.toUpperCase()).join(' ');
+    prompt += `\n**Reference Image ${imageIndex} (LOGO):** Place strictly in **${posText}**. Scale to **${logoSize}%** of default size. Keep original colors.`;
+    imageIndex++;
+  }
+
+  if (bgFile) {
+    prompt += `\n**Reference Image ${imageIndex} (BACKGROUND):** Apply at **${bgOpacity}% opacity** over solid ${bgTheme} color.`;
+    imageIndex++;
+  } else if (bgPrompt.trim()) {
+    prompt += `\n**BACKGROUND GENERATION:** Depict: "${bgPrompt}". Visible at **${bgOpacity}% opacity** under text.`;
+  }
+
+  if (customIconPrompt.trim()) {
+    prompt += `\n**Central Icon:** Custom **NEON STYLE** icon of: "${customIconPrompt}".`;
+  }
+
+  prompt += `\n**Aspect Ratio:** ${aspectRatio} \n**Vibe:** F45 Premium community.`;
+  return prompt;
+};
+
 // --- Application Component ---
 
 const App = () => {
@@ -126,7 +224,7 @@ const App = () => {
   // Logo State
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPosition, setLogoPosition] = useState<LogoPosition>('top-right');
-  const [logoSize, setLogoSize] = useState<number>(100); // NEW: #38
+  const [logoSize, setLogoSize] = useState<number>(100);
 
   // Background State
   const [bgFile, setBgFile] = useState<File | null>(null);
@@ -135,7 +233,7 @@ const App = () => {
   const [bgOpacity, setBgOpacity] = useState<number>(20);
   const [customIconPrompt, setCustomIconPrompt] = useState<string>('');
 
-  // Brand Colors State - NEW: #37
+  // Brand Colors State
   const [brandColors, setBrandColors] = useState<BrandColors>({
     primary: '#EE3124',    // F45 Red
     secondary: '#211551',  // F45 Navy
@@ -179,7 +277,6 @@ const App = () => {
       setApiKeySelected(hasKey);
     } else {
       // On Vercel or other platforms, skip API key check
-      // Users will enter it directly in the UI
       setApiKeySelected(true);
     }
   };
@@ -190,10 +287,8 @@ const App = () => {
       await window.aistudio.openSelectKey();
       setApiKeySelected(true);
     } else {
-      // For Vercel deployment, prompt user to enter API key
       const apiKey = prompt('Please enter your Google Gemini API key:');
       if (apiKey && apiKey.trim()) {
-        // Store in sessionStorage for this session
         sessionStorage.setItem('GEMINI_API_KEY', apiKey.trim());
         setApiKeySelected(true);
       }
@@ -206,16 +301,12 @@ const App = () => {
     setError(null);
   };
 
-  // Helper to get API key from sessionStorage or environment
+  /** Returns API key from sessionStorage or Vite env vars */
   const getApiKey = (): string => {
-    // Check sessionStorage first (user input)
     const sessionKey = sessionStorage.getItem('GEMINI_API_KEY');
     if (sessionKey) return sessionKey;
-
-    // Check Vite environment variables (Vercel deployment)
     if (import.meta.env.VITE_GEMINI_API_KEY) return import.meta.env.VITE_GEMINI_API_KEY;
     if (import.meta.env.VITE_API_KEY) return import.meta.env.VITE_API_KEY;
-
     return '';
   };
 
@@ -240,7 +331,6 @@ const App = () => {
     }
   };
 
-  // NEW: Preset loading handler (#16)
   const handleLoadPreset = (preset: Preset) => {
     setSelectedTemplateId(preset.templateId);
     setFormValues(preset.formValues);
@@ -259,18 +349,26 @@ const App = () => {
     try {
       const ai = new GoogleGenAI({ apiKey: getApiKey() });
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash',
+        model: GEMINI_MODEL,
         contents: `
           Act as a social media manager for F45 Training.
           Write 2 distinct versions of an Instagram caption based on these keywords: "${captionKeywords}".
           
           Guidelines:
           1. Tone: Energetic, Fun, Encouraging, Community-focused.
-          2. Use emojis generously but tastefully.
-          3. **Include 5-7 relevant hashtags** at the bottom (e.g., #F45, #TeamTraining, etc.).
-          4. **Use line breaks** to make the text easy to read.
-          5. Keep the main text concise (under 300 characters approx).
-          6. Return ONLY the two captions separated by "|||". Do not add "Version 1" labels.
+          2. **Language Format**: Write the caption in Korean first, then provide the English translation below it.
+          3. Use emojis generously but tastefully.
+          4. **Include 5-7 relevant hashtags** at the bottom (e.g., #F45, #TeamTraining, etc.).
+          5. **Use line breaks** to make the text easy to read.
+          6. Keep the main text concise.
+          7. Return ONLY the two caption versions separated by "|||". Do not add "Version 1" labels.
+          
+          Format for each version:
+          [Korean Caption]
+
+          [English Caption]
+
+          [Hashtags]
         `
       });
 
@@ -302,107 +400,59 @@ const App = () => {
       const ai = new GoogleGenAI({ apiKey: getApiKey() });
       const template = TEMPLATES.find(t => t.id === selectedTemplateId)!;
 
-      let calendarPromptAddition = "";
+      // Build calendar grid addition if needed
+      let calendarGrid = '';
       if (selectedTemplateId === 'calendar') {
         const year = parseInt(formValues['year']);
         const month = parseInt(formValues['month']);
-
         if (!isNaN(year) && !isNaN(month) && month >= 1 && month <= 12) {
           const grid = generateCalendarGrid(year, month);
-          calendarPromptAddition = `
-              \n**CRITICAL INSTRUCTION - CALENDAR GRID ACCURACY:**
-              You MUST render the calendar grid EXACTLY as shown below:
-              \`\`\`
-              Year: ${year}, Month: ${month}
-              ${grid}
-              \`\`\`
-              `;
+          calendarGrid = `
+            \n**CRITICAL INSTRUCTION - CALENDAR GRID ACCURACY:**
+            You MUST render the calendar grid EXACTLY as shown below:
+            \`\`\`
+            Year: ${year}, Month: ${month}
+            ${grid}
+            \`\`\`
+          `;
         }
       }
 
-      let userContent = "";
-      Object.entries(formValues).forEach(([key, value]) => {
-        const label = template.fields.find(f => f.id === key)?.label || key;
-        const cleanLabel = label.split('(')[0].trim();
-        userContent += `${cleanLabel}: "${value}"\n`;
-      });
-
-      // NEW: Use brand colors (#37)
-      const titleColor = bgTheme === 'dark' ? brandColors.textColor : '#221551';
-      const bgInstruction = bgTheme === 'dark' ? 'General Theme: DARK.' : 'General Theme: LIGHT.';
-
-      const ctaValue = formValues['cta'];
-      const hasCtaInput = ctaValue && ctaValue.trim().length > 0;
-
-      // NEW: Use custom primary color for CTA (#37)
-      let ctaInstruction = hasCtaInput ? `
-        **CTA BUTTON (Important):**
-        - Text: "${ctaValue}"
-        - Shape: Solid Rectangle at the bottom.
-        - Color: **${brandColors.primary}**.
-        - Style: **FLAT & SOLID**.
-      ` : `**CTA / BUTTONS:** DO NOT render any buttons.`;
-
-      const parts: any[] = [];
-      let promptText = `
-        Create a high-quality Instagram notice image for an F45 Training studio.
-        
-        **STRICT TEXT RENDERING PROTOCOL:**
-        1. **ONLY** render provided text.
-        2. **DO NOT** add extra text.
-        3. If value is empty, do not render.
-        
-        **Category:** ${template.title}
-        ${template.promptBase}
-        ${calendarPromptAddition}
-        ${ctaInstruction}
-
-        **Theme & Typography:**
-        - Background: ${bgInstruction}
-        - Title Color: ${titleColor}
-        - English: MUST use **'Gotham'** (Bold).
-        - Korean: MUST use **'Noto Sans KR'**.
-
-        **Brand Colors:**
-        - Primary: ${brandColors.primary}
-        - Secondary: ${brandColors.secondary}
-        - Text: ${brandColors.textColor}
-
-        **CONTENT TO RENDER:**
-        ${userContent}
-      `;
-
-      let imageIndex = 1;
+      // Collect image parts (logo, bg)
+      const imageParts: any[] = [];
       if (logoFile) {
         const { base64, mimeType } = await processImageFile(logoFile);
-        parts.push({ inlineData: { mimeType, data: base64 } });
-        const posText = logoPosition.split('-').map(s => s.toUpperCase()).join(' ');
-        // NEW: Add logo size info (#38)
-        promptText += `\n**Reference Image ${imageIndex} (LOGO):** Place strictly in **${posText}**. Scale to **${logoSize}%** of default size. Keep original colors.`;
-        imageIndex++;
+        imageParts.push({ inlineData: { mimeType, data: base64 } });
       }
-
       if (bgFile) {
         const { base64, mimeType } = await processImageFile(bgFile);
-        parts.push({ inlineData: { mimeType, data: base64 } });
-        promptText += `\n**Reference Image ${imageIndex} (BACKGROUND):** Apply at **${bgOpacity}% opacity** over solid ${bgTheme} color.`;
-        imageIndex++;
-      } else if (bgPrompt.trim()) {
-        promptText += `\n**BACKGROUND GENERATION:** Depict: "${bgPrompt}". Visible at **${bgOpacity}% opacity** under text.`;
+        imageParts.push({ inlineData: { mimeType, data: base64 } });
       }
 
-      if (customIconPrompt.trim()) {
-        promptText += `\n**Central Icon:** Custom **NEON STYLE** icon of: "${customIconPrompt}".`;
-      }
+      // Build text prompt
+      const promptText = buildPrompt({
+        template,
+        formValues,
+        brandColors,
+        bgTheme,
+        bgOpacity,
+        bgPrompt,
+        bgFile,
+        logoFile,
+        logoPosition,
+        logoSize,
+        customIconPrompt,
+        aspectRatio,
+        calendarGrid,
+      });
 
-      promptText += `\n**Aspect Ratio:** ${aspectRatio} \n**Vibe:** F45 Premium community.`;
-      parts.push({ text: promptText });
+      const parts = [...imageParts, { text: promptText }];
 
       const promises = Array.from({ length: variationCount }).map(async () => {
         try {
           const response = await ai.models.generateContent({
-            model: 'gemini-3.1-flash',
-            contents: { parts: parts },
+            model: GEMINI_MODEL,
+            contents: { parts },
             config: {
               imageConfig: { aspectRatio: aspectRatio, imageSize: "1K" }
             }
@@ -430,7 +480,8 @@ const App = () => {
       }
 
       const newSavedImages: SavedImage[] = validImages.map(imgData => ({
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        // fixed: substr → substring
+        id: Date.now().toString() + Math.random().toString(36).substring(2, 11),
         data: imgData,
         templateId: selectedTemplateId!,
         timestamp: new Date().toISOString()
@@ -440,12 +491,11 @@ const App = () => {
       setSavedImages(updatedList);
       await set('f45_saved_images', updatedList);
 
-      // NEW: Success feedback (#28)
       toast.success(`✨ ${validImages.length} image${validImages.length > 1 ? 's' : ''} generated!`, {
         duration: 4000,
       });
 
-      // Auto-scroll to gallery (#28)
+      // Auto-scroll to gallery
       setTimeout(() => {
         galleryRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
       }, 100);
@@ -453,7 +503,6 @@ const App = () => {
     } catch (err: any) {
       console.error(err);
 
-      // NEW: Improved error handling (#21)
       const errorInfo = parseError(err);
       setError(errorInfo.message);
 
@@ -462,6 +511,7 @@ const App = () => {
         icon: '⚠️'
       });
 
+      // Fixed: ErrorType.API_KEY_INVALID (was incorrectly using API_KEY_INVALID before enum was aligned)
       if (errorInfo.type === ErrorType.API_KEY_INVALID) {
         setApiKeySelected(false);
       }
@@ -592,7 +642,7 @@ const App = () => {
             <div className="mb-6">
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">3. Visual Customization</label>
 
-              {/* NEW: Preset Manager (#16) */}
+              {/* Preset Manager */}
               <PresetManager
                 currentSettings={{
                   templateId: selectedTemplateId,
@@ -606,13 +656,39 @@ const App = () => {
                 onLoadPreset={handleLoadPreset}
               />
 
-              {/* NEW: Color Picker (#37) */}
+              {/* Color Picker */}
               <ColorPicker
                 colors={brandColors}
                 onChange={setBrandColors}
               />
 
-              {/* NEW: DragDropZone for Logo (#4) */}
+              {/* Aspect Ratio */}
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-gray-400 mb-2">Aspect Ratio</label>
+                <div className="flex gap-2">
+                  {(['1:1', '4:5', '9:16'] as AspectRatio[]).map(r => (
+                    <button key={r} onClick={() => setAspectRatio(r)} className={`flex-1 py-2 rounded text-xs font-bold transition-all ${aspectRatio === r ? 'bg-[#EE3124] text-white' : 'bg-[#1a0f3f] text-gray-400 hover:bg-[#251560]'}`}>{r}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Variations slider */}
+              <div className="mb-4">
+                <label className="block text-xs font-semibold text-gray-400 mb-1">
+                  Variations: <span className="text-white">{variationCount}</span>
+                </label>
+                <input
+                  type="range"
+                  min="1"
+                  max="4"
+                  step="1"
+                  value={variationCount}
+                  onChange={(e) => setVariationCount(Number(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Logo upload */}
               <div className="mb-4">
                 <DragDropZone
                   onFileSelected={(file) => setLogoFile(file)}
@@ -632,11 +708,11 @@ const App = () => {
                   </div>
                 )}
 
-                {/* NEW: Logo Size Slider (#38) */}
+                {/* Logo Size Slider */}
                 {logoFile && (
                   <div className="mt-3">
                     <label className="block text-xs text-gray-400 mb-1">
-                      Logo Size: {logoSize}%
+                      Logo Size: <span className="text-white">{logoSize}%</span>
                     </label>
                     <input
                       type="range"
@@ -651,7 +727,7 @@ const App = () => {
                 )}
               </div>
 
-              {/* NEW: DragDropZone for Background (#4) */}
+              {/* Background Settings */}
               <div className="mb-4">
                 <label className="block text-xs font-semibold text-gray-300 mb-1">Background Settings</label>
                 <DragDropZone
@@ -661,6 +737,23 @@ const App = () => {
                   icon="fa-upload"
                 />
                 <input type="text" value={bgPrompt} onChange={(e) => setBgPrompt(e.target.value)} placeholder="Or describe background to generate" className={`w-full bg-[#1a0f3f] border border-[#EE3124]/30 rounded-lg p-3 text-sm outline-none focus:border-[#EE3124] transition-colors mt-3 ${bgFile ? 'opacity-50 cursor-not-allowed' : ''}`} disabled={!!bgFile} />
+
+                {/* Background Opacity Slider */}
+                <div className="mt-3">
+                  <label className="block text-xs text-gray-400 mb-1">
+                    BG Opacity: <span className="text-white">{bgOpacity}%</span>
+                  </label>
+                  <input
+                    type="range"
+                    min="5"
+                    max="100"
+                    step="5"
+                    value={bgOpacity}
+                    onChange={(e) => setBgOpacity(Number(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
+
                 <div className="flex gap-2 mt-3">
                   <button onClick={() => setBgTheme('dark')} className={`flex-1 py-2 rounded text-xs font-bold transition-all ${bgTheme === 'dark' ? 'bg-[#EE3124] text-white' : 'bg-[#1a0f3f] text-gray-400 hover:bg-[#251560]'}`}>Dark</button>
                   <button onClick={() => setBgTheme('light')} className={`flex-1 py-2 rounded text-xs font-bold transition-all ${bgTheme === 'light' ? 'bg-[#EE3124] text-white' : 'bg-[#1a0f3f] text-gray-400 hover:bg-[#251560]'}`}>Light</button>
