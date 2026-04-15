@@ -1,13 +1,28 @@
 // Image Processing Utilities
 
+// Supported output format: always JPEG for API compatibility
+const OUTPUT_MIME = 'image/jpeg';
+const OUTPUT_QUALITY = 0.92;
+
 export const processImageFile = async (file: File): Promise<{ base64: string; mimeType: string }> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (e) => {
             const img = new Image();
             img.onload = () => {
+                // Guard: degenerate image dimensions
+                if (img.width === 0 || img.height === 0) {
+                    reject(new Error(`이미지 크기가 잘못되었습니다: ${file.name}`));
+                    return;
+                }
+
                 const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d')!;
+                // Guard: 2D context may be null in memory-limited environments
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    reject(new Error('Canvas 2D context를 생성할 수 없습니다. 브라우저를 확인해주세요.'));
+                    return;
+                }
 
                 const maxDim = 2048;
                 let width = img.width;
@@ -15,10 +30,10 @@ export const processImageFile = async (file: File): Promise<{ base64: string; mi
 
                 if (width > maxDim || height > maxDim) {
                     if (width > height) {
-                        height = (height / width) * maxDim;
+                        height = Math.round((height / width) * maxDim);
                         width = maxDim;
                     } else {
-                        width = (width / height) * maxDim;
+                        width = Math.round((width / height) * maxDim);
                         height = maxDim;
                     }
                 }
@@ -27,8 +42,10 @@ export const processImageFile = async (file: File): Promise<{ base64: string; mi
                 canvas.height = height;
                 ctx.drawImage(img, 0, 0, width, height);
 
-                const base64 = canvas.toDataURL(file.type).split(',')[1];
-                resolve({ base64, mimeType: file.type });
+                // Always output JPEG to ensure consistent mimeType for the API
+                // (HEIC, WebP, AVIF etc. are not reliably supported by canvas.toDataURL)
+                const base64 = canvas.toDataURL(OUTPUT_MIME, OUTPUT_QUALITY).split(',')[1];
+                resolve({ base64, mimeType: OUTPUT_MIME });
             };
             // NOTE: onerror receives an Event object, not an Error — always wrap in Error
             img.onerror = () => reject(new Error(`이미지 로드 실패: ${file.name}`));
@@ -39,6 +56,7 @@ export const processImageFile = async (file: File): Promise<{ base64: string; mi
         reader.readAsDataURL(file);
     });
 };
+
 
 // Parameters are strictly number (callers should parse before calling)
 export const generateCalendarGrid = (year: number, month: number): string => {

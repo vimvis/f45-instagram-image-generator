@@ -208,7 +208,6 @@ const App = () => {
   // API & Template State
   const [apiKeySelected, setApiKeySelected] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState('');
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [formValues, setFormValues] = useState<Record<string, string>>({});
 
@@ -295,12 +294,13 @@ const App = () => {
     }
     sessionStorage.setItem('GEMINI_API_KEY', key);
     setApiKeySelected(true);
-    setShowApiKeyInput(false);
     setApiKeyInput('');
     toast.success('✅ API 키가 저장되었습니다');
   };
 
   const handleChangeApiKey = () => {
+    // Clear stored key so the key screen shows blank (not the old key)
+    sessionStorage.removeItem('GEMINI_API_KEY');
     setApiKeyInput('');
     setApiKeySelected(false);
   };
@@ -388,15 +388,23 @@ const App = () => {
       toast.success('✨ Captions generated!');
     } catch (e) {
       console.error(e);
-      toast.error('Failed to generate captions');
+      const errorInfo = parseError(e);
+      toast.error(errorInfo.message);
+      if (errorInfo.type === ErrorType.API_KEY_INVALID) {
+        setApiKeySelected(false);
+      }
     } finally {
       setIsGeneratingCaptions(false);
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success('📋 Caption copied!');
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('📋 Caption copied!');
+    } catch {
+      toast.error('클립보드 복사 실패 — 텍스트를 직접 선택해주세요');
+    }
   };
 
   const generateImages = async () => {
