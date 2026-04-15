@@ -1,6 +1,6 @@
 // Image Processing Utilities
 
-// Supported output format: always JPEG for API compatibility
+// Preferred output format when canvas resize is used
 const OUTPUT_MIME = 'image/jpeg';
 const OUTPUT_QUALITY = 0.92;
 
@@ -8,19 +8,30 @@ export const processImageFile = async (file: File): Promise<{ base64: string; mi
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (e) => {
+            const dataUrl = e.target?.result as string;
+            if (!dataUrl) {
+                reject(new Error(`파일을 읽을 수 없습니다: ${file.name}`));
+                return;
+            }
+
             const img = new Image();
+
             img.onload = () => {
                 // Guard: degenerate image dimensions
                 if (img.width === 0 || img.height === 0) {
-                    reject(new Error(`이미지 크기가 잘못되었습니다: ${file.name}`));
+                    // Fallback to raw base64 (e.g. SVG without explicit dimensions)
+                    const base64 = dataUrl.split(',')[1];
+                    resolve({ base64, mimeType: file.type || OUTPUT_MIME });
                     return;
                 }
 
-                const canvas = document.createElement('canvas');
                 // Guard: 2D context may be null in memory-limited environments
+                const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 if (!ctx) {
-                    reject(new Error('Canvas 2D context를 생성할 수 없습니다. 브라우저를 확인해주세요.'));
+                    // Fallback to raw base64
+                    const base64 = dataUrl.split(',')[1];
+                    resolve({ base64, mimeType: file.type || OUTPUT_MIME });
                     return;
                 }
 
@@ -42,14 +53,25 @@ export const processImageFile = async (file: File): Promise<{ base64: string; mi
                 canvas.height = height;
                 ctx.drawImage(img, 0, 0, width, height);
 
-                // Always output JPEG to ensure consistent mimeType for the API
-                // (HEIC, WebP, AVIF etc. are not reliably supported by canvas.toDataURL)
+                // Always output JPEG for consistent mimeType
+                // (HEIC, WebP, AVIF not reliably supported by canvas.toDataURL)
                 const base64 = canvas.toDataURL(OUTPUT_MIME, OUTPUT_QUALITY).split(',')[1];
                 resolve({ base64, mimeType: OUTPUT_MIME });
             };
-            // NOTE: onerror receives an Event object, not an Error — always wrap in Error
-            img.onerror = () => reject(new Error(`이미지 로드 실패: ${file.name}`));
-            img.src = e.target?.result as string;
+
+            // Fallback: browser cannot render this image format (e.g. HEIC on Chrome)
+            // Send raw base64 — the Gemini API supports more formats than HTMLImageElement
+            img.onerror = () => {
+                const base64 = dataUrl.split(',')[1];
+                if (base64) {
+                    console.warn(`Canvas 렌더링 불가 (${file.type}), raw base64로 대체: ${file.name}`);
+                    resolve({ base64, mimeType: file.type || OUTPUT_MIME });
+                } else {
+                    reject(new Error(`지원하지 않는 이미지 형식입니다: ${file.name}`));
+                }
+            };
+
+            img.src = dataUrl;
         };
         // NOTE: FileReader onerror also receives a ProgressEvent, not an Error — wrap in Error
         reader.onerror = () => reject(new Error(`파일 읽기 실패: ${file.name}`));
